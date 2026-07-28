@@ -544,6 +544,25 @@ Configure authentication, session management, and security policies.
 
 **Security tip:** Keep `showTracesOnResponse=false` in production to avoid exposing internal details.
 
+#### Feature flags removed or changed (Rundeck 6.0) {#feature-flags-removed-or-changed-rundeck-60}
+
+| Property | Status in 6.0 |
+|----------|----------------|
+| `rundeck.feature.legacyXml.enabled` | **Removed.** The REST API is **JSON only**; XML is not supported. Drop any remaining setting from configuration. |
+| `rundeck.feature.distributedAutomation.enabled` | **Default `true`.** Formerly often set explicitly on self-hosted **5.x**; an explicit **`false`** still disables distributed automation and related Runner UI/API behavior. |
+| `rundeck.feature.runnerReplicas.enabled` | **Default `true`** (self-hosted **6.0+**). On **5.x** replicas were off until enabled. An explicit **`false`** disables replicas. |
+
+Many other **`rundeck.feature.*`** keys were set to **default `true`**, made permanent (flag removed), or deleted as unused. See [Upgrading to Rundeck 6.0 — Feature flags](/upgrading/upgrading-to-6.0.md#feature-flags-defaults-removals-and-cleanup).
+
+#### Activity RSS feed (deprecated) {#activity-rss-feed-deprecated}
+
+The Activity page RSS/XML feed for execution history is **deprecated** in Rundeck 6.0, **disabled by default**, and will be **removed in a future release**. Prefer the [API](/api/index.md), [notifications](/manual/jobs/job-notifications.md), or [webhooks](/manual/notifications/webhooks.md). Details: [Upgrading to Rundeck 6.0](/upgrading/upgrading-to-6.0.md#activity-rss-feed-server-feature-removed).
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `rundeck.feature.legacyRSS.enabled` | `false` | When `true`, re-enables the legacy Activity RSS endpoints. **Not recommended:** can expose execution metadata without normal authentication. Startup logs a deprecation warning. |
+| `rss.enabled` | — | **Deprecated.** Ignored by itself on 6.0+. If set `true` without `rundeck.feature.legacyRSS.enabled=true`, RSS remains **disabled** and startup logs an error describing the replacement property. |
+
 #### Conditional Logic Feature
 
 **Early Access Feature**
@@ -1060,6 +1079,59 @@ Trim Output: Max size of visible Log Output (not present by default).
 
 : `rundeck.logviewer.trimOutput=250kb` Remove the oldest lines in Log Output after displaying 250kb of logs
 
+### Runner report processing (Commercial)
+
+:::enterprise
+:::
+
+The Rundeck server includes an optional compact processor that consolidates incoming runner reports into a single, compressed database row per operation. This significantly reduces database transaction pressure and improves log update responsiveness under high report load.
+
+:::tip Recommended: configure via System Configuration
+These properties are registered in the System Configuration GUI under **System Menu → System Configuration → Runner → Advanced**. Configuring them there stores the values in the database, shares them across all cluster members, and takes effect without a restart. See [System Configuration](/manual/configuration-mgmt/configmgmt.md) for instructions. Note: if the same property is set in `rundeck-config.properties`, the file-based value takes precedence; remove it from the file if you want the GUI value to apply.
+:::
+
+#### `rundeck.runner.compactProcessor.enabled`
+
+| | |
+|---|---|
+| **Default** | `false` |
+| **Restart required** | No (live-refreshable) |
+
+Enables the compact report processing mode. When `true`, the server stores the complete runner report message in a single compressed row (zlib) instead of one row per data object. This greatly reduces the number of database write transactions and can noticeably improve log update speed in the UI under high load.
+
+**When to enable:** When runners handle jobs with large log volumes and you observe elevated database load or slow log updates in the UI.
+
+```properties
+rundeck.runner.compactProcessor.enabled=true
+```
+
+#### `rundeck.runner.compactProcessor.maxReportDataSize`
+
+| | |
+|---|---|
+| **Default** | `1gb` |
+| **Restart required** | No (live-refreshable) |
+
+Sets the maximum amount of runner report data the server will store in the database per operation. Once the limit is reached, older report data for that operation is pruned. This acts as a safeguard against unbounded data growth from long-running or highly verbose jobs.
+
+**Accepted values:** Size strings — for example, `500mb`, `1gb`, `2gb`.
+
+```properties
+rundeck.runner.compactProcessor.maxReportDataSize=1gb
+```
+=======
+### Code Editor Settings
+
+Controls the height of the ACE code editor rendered inside plugin configuration forms (for example, inline script steps, orchestrator configuration, and execution lifecycle plugins).
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `rundeck.feature.guiAceEditorMinLines` | `12` | Minimum number of visible lines shown in the editor, which sets its minimum visible height. |
+| `rundeck.feature.guiAceEditorMaxLines` | `0` | Maximum number of lines the editor auto-expands to. Set to `0` for unlimited. |
+
+These settings can be changed at runtime via **System Configuration → GUI** without restarting Rundeck. The new values take effect on the next page load.
+
+**Scope:** These settings apply only to plugin configuration forms rendered by Vue components (job workflow steps, orchestrator, execution lifecycle, key storage, and webhooks). Plugin configuration forms that use the legacy Grails/Knockout UI are not affected.
 
 ### Groovy config format
 

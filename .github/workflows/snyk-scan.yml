@@ -15,10 +15,10 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
@@ -27,7 +27,7 @@ jobs:
         run: npm ci
           
       - name: Install Snyk CLI
-        run: npm install -g snyk@1.1304.1 --userconfig=.npmrc
+        run: npm install -g snyk@1.1305.1 --userconfig=.npmrc
       
       - name: Verify Snyk installation
         run: snyk --version

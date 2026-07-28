@@ -131,6 +131,7 @@ export default [{
             '/learning/howto/log4shell.md',
             '/learning/howto/use-roi-metrics.md',
             '/learning/howto/env-in-notifications.md',
+            '/learning/howto/custom-email-notification-template.md',
             '/learning/howto/rabbitmq-diag.md'
           ]
         },
@@ -146,6 +147,8 @@ export default [{
             '/learning/howto/config-sn-nodesource.md',
             '/learning/howto/configure-gcp-plugins.md',
             '/learning/howto/sn-midserver.md',
+            {link:'/learning/howto/monitor-server-grafana.md',text:'Monitor the Server with Prometheus and Grafana'},
+            {link:'/learning/howto/monitor-runner-grafana.md',text:'Monitor a Runner with Prometheus and Grafana'},
             '/learning/howto/rundeck-exporter.md',
             '/learning/howto/vault-integration.md',
             '/learning/howto/howtojenkins.md',

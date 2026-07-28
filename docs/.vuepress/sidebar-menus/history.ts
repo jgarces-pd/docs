@@ -6,7 +6,7 @@ export default [
   {
     text: 'Latest Release',
     collapsible: false,
-    link: '/history/5_x/version-5.20.1.md',
+    link: '/history/6_x/version-6.0.1.md',
   },
   {
     text: 'Recent Changes',
@@ -23,6 +23,12 @@ export default [
     link: '/history/',
     headerDepth: 1,
     children: [
+      {
+        text: '6.x',
+        collapsible: true,
+        link: '/history/',
+        children: getHistory('docs/history/', '6_x')
+      },
       {
         text: '5.x',
         collapsible: true,
@@ -83,24 +89,35 @@ export default [
     collapsible: true,
     children: [
       {
-        text: 'Version 5.x',
+        text: 'Version 6.x',
         collapsible: true,
         children: [
+          {
+            text: "6.0.1",
+            link: "https://docs.rundeck.com/6.0.1/"
+          },
+          {
+            text: "6.0.0",
+            link: "https://docs.rundeck.com/6.0.0/"
+          },
+        ]
+      },
+      {
+        text: 'Version 5.x',
+        collapsible: true,
+        children: [          
           {
             text: "5.20.1",
             link: "https://docs.rundeck.com/5.20.1/"
           },
-
           {
             text: "5.20.0",
             link: "https://docs.rundeck.com/5.20.0/"
           },
-
           {
             text: "5.19.0",
             link: "https://docs.rundeck.com/5.19.0/"
           },
-
           {
             text: "5.18.0",
             link: "https://docs.rundeck.com/5.18.0/"

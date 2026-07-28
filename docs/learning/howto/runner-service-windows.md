@@ -74,7 +74,7 @@ The runner was configured on our Project, now, let's test the runner from the Wi
 
 Before configuring the Enterprise Runner as a service, a good starting point could be to test the connection between the Enterprise Runner and the Runbook Automation instance. To do so, check the following steps:
 
-1. Review the Enterprise Runner requirements, the major need being Java 11 JRE and the `JAVA_HOME` environment variable configured.
+1. Review the Enterprise Runner requirements, the major need being Java 17 JRE and the `JAVA_HOME` environment variable configured.
 
 2. Make a new folder, such as `C:\runner\` in this example.
 
@@ -141,6 +141,10 @@ endlocal
 
 7. Execute the following command (you can copy and paste it directly on the CMD terminal to execute it):
 
+:::: tabs
+
+@tab Standard (`java` mode)
+
 ```bat
 runner.exe //IS//Runner ^
  --DisplayName=Runner ^
@@ -164,9 +168,46 @@ runner.exe //IS//Runner ^
  --StdError=C:\runner\runner.log
 ```
 
-:::tip Note
+::: tip Note
 The service name uses a double slash (`//IS//runner`) — this is the procrun syntax for "install service". `--Jvm=auto` lets procrun locate `jvm.dll` automatically from `JAVA_HOME` / the registry. The stop is delegated to `stop-runner.bat` through `cmd.exe`; the full path to `cmd.exe` is required because procrun passes `--StopImage` directly to `CreateProcess`, which does not search the `PATH` (a bare `cmd` fails with `The system cannot find the file specified`).
 :::
+
+@tab Alternative (more logging, `jvm` mode)
+
+With `--StartMode=java`, procrun launches the Runner as a **separate** `java.exe` process and does not pipe that process's output into `--StdOutput`/`--StdError`, so `runner.log` can stay empty. Use this `jvm`-mode variant instead: procrun loads the JVM **in-process** and captures the Runner's `System.out`/`System.err` directly into the log file.
+
+```bat
+runner.exe //IS//Runner ^
+ --DisplayName=Runner ^
+ --LogLevel=Info ^
+ --LogPath=C:\runner ^
+ --ServiceUser=LocalSystem ^
+ --Startup=auto ^
+ --Jvm="<JAVA_INSTALL_PATH>\bin\server\jvm.dll" ^
+ --StartMode=jvm ^
+ --Classpath=C:\runner\runner.jar ^
+ --StartClass=com.rundeck.runner.agent.RunnerApplication ^
+ --StartMethod=main ^
+ --StartPath=C:\runner ^
+ --StopMode=exe ^
+ --StopImage=C:\Windows\System32\cmd.exe ^
+ --StopParams=/c#C:\runner\stop-runner.bat ^
+ --StopPath=C:\runner ^
+ --StopTimeout=30 ^
+ --PidFile=runner.pid ^
+ --JvmMs=1024 ^
+ --JvmMx=4096 ^
+ --StdOutput=C:\runner\runner.log ^
+ --StdError=C:\runner\runner.log
+```
+
+:::warning Set `--Jvm` to your real `jvm.dll` path
+In `jvm` mode, `--Jvm=auto` often fails with `no JVM configured or found in registry` (many JDK/JRE builds don't register in the Windows registry, and the `LocalSystem` account doesn't see a user-level `JAVA_HOME`). Replace `<JAVA_INSTALL_PATH>` with your Java installation directory (the same path as `JAVA_HOME`).
+
+Note that `jvm` mode replaces `--StartMode=java`/`--StartParams=-jar#runner.jar` with `--StartMode=jvm`, `--Classpath` (the path to `runner.jar`) and `--StartClass` (the Runner main class). The `runner.exe` (procrun) and the `jvm.dll` must be the **same architecture** (use the 64-bit `prunsrv.exe` from `amd64\` with a 64-bit JRE/JDK).
+:::
+
+::::
 
 You will see messages similar to the following:
 
@@ -221,7 +262,7 @@ NOTE: NSSM is an inactive project, the last build was released in 2014.
 
 ![NSSM Service Editor](/assets/img/raas8.png)<br>
 
-5. On the "Path" field put the Java 11 JRE binary path (including the `java.exe` at the end).
+5. On the "Path" field put the Java 17 JRE binary path (including the `java.exe` at the end).
 
 6. On the "Startup directory" put the Enterprise Runner folder, e.g. `C:\runner\`.
 

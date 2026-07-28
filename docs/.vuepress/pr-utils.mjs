@@ -9,24 +9,106 @@
  * Parse the SaaS cut tag to extract commit SHAs
  * Tag format: rba/${vNum}-RBA-${vDate}-${coreSha}-${proSha}
  * Example: rba/5.18-RBA-20251030-2f39445-a6d9e14
- * 
+ *
  * @param {string} tag - SaaS cut tag
- * @returns {Object} Object with rundeckSha and rundeckproSha, or null if parse fails
+ * @returns {Object} Object with vNum, rundeckSha and rundeckproSha, or null if parse fails
  */
 export function parseSaasCutTag(tag) {
   // Tag format: rba/5.18-RBA-20251030-2f39445-a6d9e14
   //                    ^version  ^date    ^core   ^pro
-  const match = tag.match(/^rba\/[\d.]+-RBA-\d{8}-([a-fA-F0-9]+)-([a-fA-F0-9]+)$/);
-  
+  const match = tag.match(/^rba\/([\d.]+)-RBA-\d{8}-([a-fA-F0-9]+)-([a-fA-F0-9]+)$/);
+
   if (!match) {
     console.warn(`  Warning: Could not parse SaaS cut tag format: ${tag}`);
     return null;
   }
-  
+
   return {
-    rundeckSha: match[1],     // coreSha - rundeck submodule commit
-    rundeckproSha: match[2]   // proSha - rundeckpro commit
+    vNum: match[1],           // e.g. "6.1" - next major version targeted by this cut
+    rundeckSha: match[2],     // coreSha - rundeck submodule commit
+    rundeckproSha: match[3]   // proSha - rundeckpro commit
   };
+}
+
+/**
+ * Fetch PRs by milestone as a fallback for large commit ranges
+ * @param {Object} octokit - Initialized Octokit instance
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @param {string} milestone - Milestone version (e.g., "6.0.0")
+ * @param {Array<string>} includeLabels - Labels that PRs must have (empty array = all PRs)
+ * @param {Array<string>} excludeLabels - Labels to exclude from results
+ * @returns {Promise<Array>} Array of PR objects
+ */
+async function fetchPRsByMilestone(octokit, owner, repo, milestone, includeLabels = [], excludeLabels = []) {
+  console.log(`  Using milestone-based search for ${owner}/${repo} milestone ${milestone}`);
+  
+  const prs = [];
+  let page = 1;
+  const perPage = 100;
+  let hasMore = true;
+  
+  while (hasMore) {
+    try {
+      const { data: pullRequests } = await octokit.rest.pulls.list({
+        owner,
+        repo,
+        state: 'closed',
+        per_page: perPage,
+        page: page,
+        sort: 'updated',
+        direction: 'desc'
+      });
+      
+      if (pullRequests.length === 0) {
+        hasMore = false;
+        break;
+      }
+      
+      for (const pr of pullRequests) {
+        // Only include merged PRs
+        if (!pr.merged_at) continue;
+        
+        // Check milestone if it exists
+        if (pr.milestone && pr.milestone.title === milestone) {
+          const prLabels = pr.labels.map(label => label.name);
+          
+          // Check exclude labels
+          if (excludeLabels.length > 0 && excludeLabels.some(label => prLabels.includes(label))) {
+            continue;
+          }
+          
+          // Check include labels (empty = all PRs)
+          if (includeLabels.length === 0 || includeLabels.some(label => prLabels.includes(label))) {
+            prs.push({
+              ...pr,
+              _repoOwner: owner,
+              _repoName: repo
+            });
+          }
+        }
+      }
+      
+      // GitHub's list PRs API paginates
+      if (pullRequests.length < perPage) {
+        hasMore = false;
+      } else {
+        page++;
+      }
+      
+      // Safety limit
+      if (page > 100) {
+        console.log(`  ⚠ Reached pagination safety limit (${prs.length} PRs found)`);
+        hasMore = false;
+      }
+    } catch (error) {
+      console.warn(`  Warning: Error fetching PRs by milestone: ${error.message}`);
+      hasMore = false;
+    }
+  }
+  
+  console.log(`  Found ${prs.length} PRs with milestone ${milestone}`);
+  return prs;
 }
 
 /**
@@ -39,9 +121,12 @@ export function parseSaasCutTag(tag) {
  * @param {Array<string>} includeLabels - Labels that PRs must have (empty array = all PRs)
  * @param {Array<string>} excludeLabels - Labels to exclude from results
  * @param {string} headRef - Optional head reference (defaults to trying the toVersion tag)
+ * @param {string} milestoneFallback - Optional milestone title to use for the large-range fallback
+ *   (defaults to toVersion, which is only a valid milestone title when toVersion is a real
+ *   version like "6.1.0" rather than a commit SHA)
  * @returns {Promise<Array>} Array of PR objects
  */
-export async function fetchPRsBetweenTags(octokit, owner, repo, fromVersion, toVersion, includeLabels = [], excludeLabels = [], headRef = null) {
+export async function fetchPRsBetweenTags(octokit, owner, repo, fromVersion, toVersion, includeLabels = [], excludeLabels = [], headRef = null, milestoneFallback = null) {
   // Try different tag naming conventions for base (from) tag
   const baseTagFormats = [`v${fromVersion}`, fromVersion, `V${fromVersion}`];
   
@@ -80,6 +165,16 @@ export async function fetchPRsBetweenTags(octokit, owner, repo, fromVersion, toV
   if (!comparison) {
     console.log(`  ⚠ Tags ${fromVersion}...${toVersion} not found - skipping ${owner}/${repo}`);
     return [];
+  }
+  
+  const totalCommits = comparison.data.total_commits || comparison.data.commits.length;
+  
+  // GitHub's compareCommits API has a 250 commit limit
+  // For large ranges, we need a different approach
+  if (totalCommits > 250) {
+    const milestone = milestoneFallback || toVersion;
+    console.log(`  ⚠ Large commit range (${totalCommits} commits) - using milestone/search fallback`);
+    return await fetchPRsByMilestone(octokit, owner, repo, milestone, includeLabels, excludeLabels);
   }
   
   // Extract PR numbers from merge commits
@@ -166,19 +261,22 @@ export async function fetchPRsBetweenTags(octokit, owner, repo, fromVersion, toV
 }
 
 /**
- * Clean PR title by removing the required Jira prefix `[RUN-123]` (optional colon/spaces after `]`).
+ * Clean PR title by removing the Jira prefix in either format:
+ * - Old format: `RUN-123: `
+ * - New format: `[RUN-123]` or `[RUN-123]: `
  * Titles without this prefix are left unchanged so non-compliant titles surface as-is.
  * @param {string} title - PR title
  * @returns {string} Cleaned title
  */
 export function cleanPRTitle(title) {
   if (!title) return '';
-  return title.replace(/^(?:\[RUN-[0-9]+\]\s*:?\s*)+/, '').trim();
+  return title.replace(/^(?:\[?RUN-[0-9]+\]?\s*:?\s*)+/, '').trim();
 }
 
 /**
  * Extract a specific section from PR body
  * Looks for sections like "## Customer Summary" or "### Release Notes"
+ * Strips markdown reference-style links (e.g., [RUN-123]: https://...) from the output
  * @param {string} body - PR body text
  * @param {string} sectionName - Section header to look for (case insensitive)
  * @returns {string|null} Section content or null if not found
@@ -217,7 +315,12 @@ export function extractPRSection(body, sectionName) {
     }
   }
   
-  const content = sectionContent.join('\n').trim();
+  let content = sectionContent.join('\n').trim();
+  
+  // Remove markdown reference-style links (e.g., [RUN-123]: https://...)
+  // These are typically at the end and should not appear in release notes output
+  content = content.replace(/^\[.+?\]:\s*https?:\/\/.+$/gm, '').trim();
+  
   return content || null;
 }
 
@@ -250,11 +353,42 @@ export function getPreviousVersion(version) {
     return `${major}.${minor - 1}.0`;
   }
   
-  // If major > 0, decrement major and assume previous ended at .17.0
+  // Major bump (e.g. 6.0.0 → prior line). Old releases used a fixed minor; use
+  // resolveNotesFromVersion() with docs RUNDECK_VERSION instead for accurate PR ranges.
   if (major > 0) {
     return `${major - 1}.17.0`;
   }
-  
+
   throw new Error(`Cannot decrement version: ${version}`);
+}
+
+/**
+ * Resolve the "from" version for release-notes PR scraping.
+ * For a new major (X.0.0), if docs still track the previous major in setup (RUNDECK_VERSION),
+ * use that value so notes span 5.20.0 → 6.0.0 instead of a stale hardcoded 5.17.0.
+ *
+ * @param {string} toVersion - Milestone (e.g. "6.0.0")
+ * @param {string} docsRundeckVersion - Typically setup.rundeckVersion from the docs build
+ * @param {string|null|undefined} explicitFrom - CLI --from-version when set
+ * @returns {string}
+ */
+export function resolveNotesFromVersion(toVersion, docsRundeckVersion, explicitFrom) {
+  if (explicitFrom) {
+    return explicitFrom;
+  }
+  const tp = toVersion.split('.').map(Number);
+  if (tp.length !== 3 || tp.some((n) => Number.isNaN(n))) {
+    throw new Error(`Invalid milestone: ${toVersion}. Expected X.Y.Z`);
+  }
+  const [maj, min, pat] = tp;
+  const sp = String(docsRundeckVersion || '')
+    .split('.')
+    .map(Number);
+  const isMajorMilestone = min === 0 && pat === 0;
+  const docsLooksPriorLine = sp.length === 3 && !sp.some(Number.isNaN) && sp[0] === maj - 1;
+  if (isMajorMilestone && docsLooksPriorLine) {
+    return docsRundeckVersion;
+  }
+  return getPreviousVersion(toVersion);
 }
 

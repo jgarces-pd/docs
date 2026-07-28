@@ -42,6 +42,7 @@ Available Guides by Section
 [Find Log4Shell with Rundeck](/learning/howto/log4shell.md)  
 [Use ROI Metric Data](/learning/howto/use-roi-metrics.md)  
 [Pass Data into Notifications](/learning/howto/env-in-notifications.md)  
+[Build a Custom Email Notification Template](/learning/howto/custom-email-notification-template.md)  
 
 ## Integrating
 [Use Rundeck Webhooks](/learning/howto/using-webhooks.md)  
@@ -51,7 +52,9 @@ Available Guides by Section
 [Configure ServiceNow CMDB as a Node Source](/learning/howto/config-sn-nodesource.md)  
 [Configure GCP Integration](/learning/howto/configure-gcp-plugins.md)  
 [Use a serviceNow MID Server](/learning/howto/sn-midserver.md)  
-[Monitor Using Prometheus and Grafana](/learning/howto/rundeck-exporter.md)  
+[Monitor the Server with Prometheus and Grafana](/learning/howto/monitor-server-grafana.md)  
+[Monitor a Runner with Prometheus and Grafana](/learning/howto/monitor-runner-grafana.md)  
+[Monitor Using Prometheus and Grafana (legacy exporter)](/learning/howto/rundeck-exporter.md)  
 [Integrate with Hashicorp Vault](/learning/howto/vault-integration.md)  
 [Integrate with Jenkins](/learning/howto/howtojenkins.md)  
 [Manage Kubernetes](/learning/howto/how2kube.md)  

@@ -25,6 +25,47 @@ The filter form contains a number of fields to limit search:
 After filling the form pressing the "Filter" button, the page will
 display executions matching the search.
 
+### Default Time Filter
+
+By default the Activity view loads all executions without a time boundary, which can be slow on instances with large execution history. Administrators can configure a default time filter so the Activity page opens pre-filtered to a recent window.
+
+Two settings work together to enable this feature:
+
+**1. Enable the feature flag** in `rundeck-config.properties`:
+
+```properties
+rundeck.feature.activityDefaultTimeFilter.enabled=true
+```
+
+**2. Set the default time window** (optional — defaults to `1m`):
+
+```properties
+rundeck.gui.activity.defaultTimeFilter=1w
+```
+
+Accepted values:
+
+| Value | Description |
+|-------|-------------|
+| `1h`  | Last 1 hour |
+| `1d`  | Last 1 day  |
+| `1w`  | Last 1 week |
+| `1m`  | Last 1 month (default when not specified) |
+
+**Docker / environment variable configuration:**
+
+```bash
+RUNDECK_FEATURE_ACTIVITYDEFAULTTIMEFILTER_NAME=activityDefaultTimeFilter
+RUNDECK_FEATURE_ACTIVITYDEFAULTTIMEFILTER_ENABLED=true
+RUNDECK_GUI_ACTIVITY_DEFAULTTIMEFILTER=1w
+```
+
+When enabled, the **Activity**, **Jobs**, and **Ad hoc commands** pages all apply this filter on first load when no other filters are active. Users can still change or clear the filter manually at any time.
+
+:::tip
+Setting a default time filter is recommended for production instances with months or years of execution history, as it significantly reduces initial page load time.
+:::
+
 ## Activity in PagerDuty Runbook Automation Self-Hosted Home
 
 On the home page, users can check activity for a specific project, such as failed executions for each project.
@@ -77,12 +118,11 @@ You can find below the possible **Execution Status** an Execution can assume in 
 | MISSED            | ![Clock](/assets/img/569667.png)       | Red        | Status when [Missed Job Fires (Enterprise Only)](/manual/schedules/missedjobfires.md) is enabled and one of the jobs doesn't run at the time when it was scheduled to run.                                                                                                                                                          |
 | OTHER-INCOMPLETE  | ![Incomplete](/assets/img/569911.png)  | Orange     | Status when a job finishes with some nodes where some steps were not started                                                                                                                                                                                                                                                        |
 | OTHER             | ![Other](/assets/img/569744.png)       | ORANGE     | Status when any other issue occurs during runbook execution                                                                                                                                                                                                                                                                         |
-## RSS link
+## RSS feed (deprecated in Rundeck 6.0)
 
-If configured, an RSS icon provides a link to an RSS view of the events that match
-the current filtering criteria.
-
-![RSS link](/assets/img/fig0214.png)
+::: warning
+Earlier releases could expose an **RSS** icon on Activity linking to an XML feed of executions matching the current filters (sometimes configurable as a public URL). In **Rundeck 6.0** this server-side feed is **deprecated** and **off by default**. If your organization still requires it, you can opt in with **`rundeck.feature.legacyRSS.enabled=true`** (not recommended long term; see [upgrade notes](/upgrading/upgrading-to-6.0.md#activity-rss-feed-server-feature-removed)). This does **not** affect the [RSS Feed Plugin](/manual/jobs/job-plugins/workflow-steps/rss-feed-plugin.md) job step.
+:::
 
 ## Bulk Delete Executions
 
